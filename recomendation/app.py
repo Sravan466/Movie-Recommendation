@@ -1,56 +1,62 @@
 import streamlit as st
 import pickle
 import requests
+from streamlit.components.v1 import html
 
+# Function to fetch movie posters
 def fetch_poster(movie_id):
-    url="https://api.themoviedb.org/3/movie/{}?api_key=c7ec19ffdd3279641fb606d19ceb9bb1&language=en-us".format(movie_id)
-    data=requests.get(url)
-    data=data.json()
-    poster_path=data['poster_path']
-    full_path="https://image.tmdb.org/t/p/w500/" +poster_path
-    return full_path
-movies=pickle.load(open("movies_list.pkl",'rb'))
-similarity=pickle.load(open("similarity.pkl",'rb'))
-movies_list=movies['title'].values
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=c7ec19ffdd3279641fb606d19ceb9bb1&language=en-US"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        poster_path = data.get('poster_path')
+        if poster_path:
+            return f"https://image.tmdb.org/t/p/w500/{poster_path}"
+    return "https://via.placeholder.com/300x450?text=No+Image"
 
-st.header("Movie Recommender System")
- 
- #create a dropdown to select a movie
-selected_movie=st.selectbox("Select a movie:",movies_list)
+# Load movie data and similarity matrix
+movies = pickle.load(open("movies_list.pkl", 'rb'))
+similarity = pickle.load(open("similarity.pkl", 'rb'))
 
-import streamlit.components.v1 as components
+movies_list = movies['title'].values
 
+# App title and styles
+st.set_page_config(page_title="Movie Recommender System", page_icon="🎥", layout="wide")
+st.markdown("<style>body {font-family: 'Arial', sans-serif;}</style>", unsafe_allow_html=True)
+
+st.title("🎬 Movie Recommender System")
+st.subheader("Find similar movies based on your favorite!")
+
+# Dropdown for movie selection
+selected_movie = st.selectbox("Select a movie:", movies_list)
+
+# Recommendation logic
 def recommend(movie):
-    index=movies[movies['title']==movie].index[0]
-    distance=sorted(list(enumerate(similarity[index])),reverse=True,key=lambda vector:vector[1])
-    recommend_movie=[]
-    recommend_poster=[]
-    for i in distance[1:6]:
-        movies_id=movies.iloc[i[0]].id
-        recommend_movie.append(movies.iloc[i[0]].title)
-        recommend_poster.append(fetch_poster(movies_id))
-    return recommend_movie,recommend_poster
+    try:
+        index = movies[movies['title'] == movie].index[0]
+        distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
+        recommend_movies = []
+        recommend_posters = []
+        for i in distances[1:6]:
+            movie_id = movies.iloc[i[0]].id
+            recommend_movies.append(movies.iloc[i[0]].title)
+            recommend_posters.append(fetch_poster(movie_id))
+        return recommend_movies, recommend_posters
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return [], []
 
-if st.button("Show Recommend"):
-    movie_name,movie_poster=recommend(selected_movie)
-    col1,col2,col3,col4,col5 =st.columns(5)
-    with col1:
-        st.text(movie_name[0])
-        st.image(movie_poster[0])
-    with col2:
-        st.text(movie_name[1])
-        st.image(movie_poster[1])
-    with col3:
-        st.text(movie_name[2])
-        st.image(movie_poster[2])
-    with col4:
-        st.text(movie_name[3])
-        st.image(movie_poster[3])
-    with col5:
-        st.text(movie_name[4])
-        st.image(movie_poster[4])
-    
-        
-        
+# Show recommendations when button is clicked
+if st.button("Show Recommendations"):
+    recommended_movies, recommended_posters = recommend(selected_movie)
+    if recommended_movies:
+        cols = st.columns(5)
+        for i, col in enumerate(cols):
+            with col:
+                st.image(recommended_posters[i], caption=recommended_movies[i], use_column_width=True)
+    else:
+        st.warning("No recommendations available for this movie.")
 
-
+# Footer
+st.markdown("---")
+st.markdown("© 2024 Movie Recommender System. Powered by Streamlit.")
